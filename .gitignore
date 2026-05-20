@@ -1,5 +1,37 @@
-bin/
-obj/
+# Visual Studio
 .vs/
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
+
+# .NET build outputs
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+TestResults/
+*.nupkg
+*.snupkg
+
+# Python environments
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Test folders and local test data
+test/
+tests/
+Test/
+Tests/
+*.edf
+
+# Local runtime configuration and generated TFR files
+appsettings.local.json
+RuiSource/Python/tfr_input.json
+RuiSource/Python/tfr_output.json
+RuiSource/Python/tfr_output.png
