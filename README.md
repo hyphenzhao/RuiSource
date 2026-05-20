@@ -29,6 +29,11 @@ Implemented features:
 - Compute TFR on selected EEG segments using Python/MNE Morlet TFR
 - Native C# rendering for PSD and TFR results
 - Multi-channel TFR viewer with per-channel magnifying view
+- Right-side source-localisation preparation previews:
+  - matched standard EEG electrode 3D positions
+	- Python/MNE-rendered source-space brain/electrode preview image
+  - native fallback standard brain/head preview when Python rendering is unavailable
+- Automatic case-insensitive matching of loaded EEG channel names to standard electrode names
 - Configurable Python executable and Python scripts folder through `Configure...`
 
 ## Technology stack
@@ -41,7 +46,7 @@ Implemented features:
 
 ## Python integration
 
-Python is currently used for Morlet TFR computation. C# passes selected EEG data to Python, Python computes TFR numeric data, and C# renders the result as a heatmap.
+Python is currently used for Morlet TFR computation and MNE-backed source preview image rendering. C# passes selected EEG data or channel names to Python, Python computes numeric/preview outputs, and C# renders the result in the desktop UI.
 
 Expected Python environment:
 
@@ -60,6 +65,14 @@ The Python TFR script is located at:
 ```text
 RuiSource/Python/compute_tfr.py
 ```
+
+The Python source preview script is located at:
+
+```text
+RuiSource/Python/render_source_preview.py
+```
+
+After an EDF file is loaded, RuiSource calls this script to render a static MNE `standard_1020` source-space preview PNG containing matched EEG electrodes and a brain/head reference. If Python, MNE, or matplotlib is unavailable, EDF loading still succeeds and the app keeps a native fallback preview with an explanatory message.
 
 If Python cannot be found, use the app menu:
 
@@ -89,6 +102,8 @@ File -> Open EDF
 5. Use analysis buttons that appear after selecting a range:
    - `Compute PSD`
    - `Compute TFR`
+
+After an EDF file is loaded, the right-side source-localisation preview area is enabled. RuiSource attempts to match loaded EEG channel names to standard electrode names while ignoring case and common prefixes/suffixes such as `EEG`, `REF`, `LE`, and `RE`.
 
 ## Menus
 

@@ -21,6 +21,11 @@ namespace RuiSource
         private readonly Dictionary<string, double[]> _filteredSignals = new();
         private HashSet<int> _visibleChannelIndexes = new();
         private readonly Dictionary<int, string> _channelNames = new();
+        private IReadOnlyList<ElectrodePosition> _matchedElectrodes = Array.Empty<ElectrodePosition>();
+        private Image? _sourcePreviewImage;
+        private string _sourcePreviewMessage = "Open an EDF file to render source preview.";
+        private int _sourcePreviewRenderVersion;
+        private bool _standardMriLoaded;
         private AppConfiguration _configuration;
         private bool _isSelectingRange;
         private double? _selectionStartSeconds;
@@ -71,6 +76,9 @@ namespace RuiSource
                     _channelNames[index] = loadedFile.Signals[index].Label;
                 }
 
+                LoadStandardSourceViews(loadedFile);
+                _ = RenderMneSourcePreviewAsync(loadedFile, ++_sourcePreviewRenderVersion);
+
                 statusLabel.Text = BuildStatusText();
                 plotPanel.Invalidate();
             }
@@ -83,6 +91,7 @@ namespace RuiSource
                 _filteredSignals.Clear();
                 _visibleChannelIndexes.Clear();
                 _channelNames.Clear();
+                ClearSourceViews();
                 _selectionStartSeconds = null;
                 _selectionEndSeconds = null;
                 computePsdButton.Visible = false;
@@ -247,6 +256,108 @@ namespace RuiSource
         private void plotPanel_Resize(object sender, EventArgs e)
         {
             plotPanel.Invalidate();
+        }
+
+        private void electrodeViewPanel_Paint(object sender, PaintEventArgs e)
+        {
+            e.Graphics.Clear(Color.White);
+            if (_loadedFile is null || _matchedElectrodes.Count == 0)
+            {
+                return;
+            }
+
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            var bounds = electrodeViewPanel.ClientRectangle;
+            if (bounds.Width <= 1 || bounds.Height <= 1)
+            {
+                return;
+            }
+
+            var center = new PointF(bounds.Width / 2f, bounds.Height / 2f + 6f);
+            var radius = Math.Max(20f, Math.Min(bounds.Width, bounds.Height) * 0.34f);
+            using var headPen = new Pen(Color.LightSlateGray, 1.2f);
+            using var gridPen = new Pen(Color.Gainsboro, 1f);
+            using var electrodeBrush = new SolidBrush(Color.RoyalBlue);
+            using var labelBrush = new SolidBrush(Color.Black);
+            using var axisBrush = new SolidBrush(Color.DimGray);
+
+            e.Graphics.DrawEllipse(headPen, center.X - radius, center.Y - radius, radius * 2f, radius * 2f);
+            e.Graphics.DrawEllipse(gridPen, center.X - radius * 0.72f, center.Y - radius * 0.72f, radius * 1.44f, radius * 1.44f);
+            e.Graphics.DrawLine(gridPen, center.X, center.Y - radius, center.X, center.Y + radius);
+            e.Graphics.DrawLine(gridPen, center.X - radius, center.Y, center.X + radius, center.Y);
+            DrawNose(e.Graphics, headPen, center, radius);
+
+            foreach (var electrode in _matchedElectrodes.OrderBy(item => item.Z))
+            {
+                var point = ProjectElectrode(electrode, center, radius);
+                e.Graphics.FillEllipse(electrodeBrush, point.X - 3.5f, point.Y - 3.5f, 7f, 7f);
+                e.Graphics.DrawEllipse(Pens.White, point.X - 3.5f, point.Y - 3.5f, 7f, 7f);
+                TextRenderer.DrawText(e.Graphics, electrode.CanonicalName, Font, new Point((int)point.X + 4, (int)point.Y - 7), Color.Black);
+            }
+
+            TextRenderer.DrawText(e.Graphics, $"Matched {_matchedElectrodes.Count}/{_loadedFile.Signals.Count}", Font, new Point(6, 6), Color.DimGray);
+            TextRenderer.DrawText(e.Graphics, "L", Font, new Point((int)(center.X - radius - 16), (int)center.Y - 8), Color.DimGray);
+            TextRenderer.DrawText(e.Graphics, "R", Font, new Point((int)(center.X + radius + 5), (int)center.Y - 8), Color.DimGray);
+            TextRenderer.DrawText(e.Graphics, "Nasion", Font, new Point((int)center.X - 22, (int)(center.Y - radius - 24)), Color.DimGray);
+        }
+
+        private void electrodeViewPanel_Resize(object sender, EventArgs e)
+        {
+            electrodeViewPanel.Invalidate();
+        }
+
+        private void mriViewPanel_Paint(object sender, PaintEventArgs e)
+        {
+            e.Graphics.Clear(Color.White);
+            var bounds = mriViewPanel.ClientRectangle;
+            if (bounds.Width <= 1 || bounds.Height <= 1)
+            {
+                return;
+            }
+
+            if (_loadedFile is null || !_standardMriLoaded)
+            {
+                TextRenderer.DrawText(e.Graphics, _sourcePreviewMessage, Font, bounds, Color.DimGray,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+                return;
+            }
+
+            if (_sourcePreviewImage is not null)
+            {
+                TextRenderer.DrawText(e.Graphics, _sourcePreviewMessage, Font, new Point(6, 6), Color.DimGray);
+                return;
+            }
+
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+
+            var center = new PointF(bounds.Width / 2f, bounds.Height / 2f + 4f);
+            var scale = Math.Max(20f, Math.Min(bounds.Width, bounds.Height) * 0.34f);
+            var headBounds = new RectangleF(center.X - scale * 0.72f, center.Y - scale, scale * 1.44f, scale * 1.90f);
+            var brainBounds = new RectangleF(center.X - scale * 0.54f, center.Y - scale * 0.65f, scale * 1.08f, scale * 1.12f);
+
+            using var headBrush = new SolidBrush(Color.FromArgb(232, 232, 232));
+            using var headPen = new Pen(Color.Gray, 1.2f);
+            using var brainBrush = new SolidBrush(Color.FromArgb(210, 225, 245));
+            using var brainPen = new Pen(Color.SteelBlue, 1.2f);
+            using var midlinePen = new Pen(Color.FromArgb(120, Color.DimGray), 1f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash };
+
+            e.Graphics.FillEllipse(headBrush, headBounds);
+            e.Graphics.DrawEllipse(headPen, headBounds);
+            e.Graphics.FillEllipse(brainBrush, brainBounds);
+            e.Graphics.DrawEllipse(brainPen, brainBounds);
+            e.Graphics.DrawLine(midlinePen, center.X, headBounds.Top + 8f, center.X, headBounds.Bottom - 8f);
+            e.Graphics.DrawArc(brainPen, brainBounds.Left + brainBounds.Width * 0.14f, brainBounds.Top + brainBounds.Height * 0.18f, brainBounds.Width * 0.72f, brainBounds.Height * 0.34f, 200f, 140f);
+            e.Graphics.DrawArc(brainPen, brainBounds.Left + brainBounds.Width * 0.16f, brainBounds.Top + brainBounds.Height * 0.50f, brainBounds.Width * 0.68f, brainBounds.Height * 0.30f, 20f, 140f);
+
+            DrawOrientationAxes(e.Graphics, bounds);
+            TextRenderer.DrawText(e.Graphics, _sourcePreviewMessage, Font, new Rectangle(6, 6, bounds.Width - 12, Font.Height * 3), Color.DimGray,
+                TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis);
+            TextRenderer.DrawText(e.Graphics, "Native fallback preview", Font, new Point(6, bounds.Height - Font.Height - 6), Color.DimGray);
+        }
+
+        private void mriViewPanel_Resize(object sender, EventArgs e)
+        {
+            mriViewPanel.Invalidate();
         }
 
         private void plotPanel_MouseEnter(object sender, EventArgs e)
@@ -553,6 +664,7 @@ namespace RuiSource
 
             var maxStartIndex = Math.Max(0, _visibleChannelIndexes.Count - VisibleChannelCount);
             _channelStartIndex = Math.Clamp(_channelStartIndex, 0, maxStartIndex);
+            RefreshStandardElectrodeMatches();
             statusLabel.Text = BuildStatusText();
             plotPanel.Invalidate();
         }
@@ -725,6 +837,145 @@ namespace RuiSource
             return _channelNames.TryGetValue(index, out var name) ? name : fallbackName;
         }
 
+        private void LoadStandardSourceViews(EdfFile loadedFile)
+        {
+            DisposeSourcePreviewImage();
+            sourcePreviewPictureBox.Visible = false;
+            _sourcePreviewMessage = "Rendering MNE source preview...";
+
+            for (var index = 0; index < loadedFile.Signals.Count; index++)
+            {
+                if (StandardElectrodePositionService.TryNormalizeChannelName(loadedFile.Signals[index].Label, out var canonicalName))
+                {
+                    _channelNames[index] = canonicalName;
+                }
+            }
+
+            _matchedElectrodes = StandardElectrodePositionService.MatchChannels(_channelNames.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+            _standardMriLoaded = true;
+            electrodeViewGroupBox.Enabled = true;
+            mriViewGroupBox.Enabled = true;
+            mriViewGroupBox.Text = "MNE source-space preview";
+            electrodeViewPanel.Invalidate();
+            mriViewPanel.Invalidate();
+        }
+
+        private void ClearSourceViews()
+        {
+            _sourcePreviewRenderVersion++;
+            DisposeSourcePreviewImage();
+            sourcePreviewPictureBox.Visible = false;
+            _sourcePreviewMessage = "Open an EDF file to render source preview.";
+            _matchedElectrodes = Array.Empty<ElectrodePosition>();
+            _standardMriLoaded = false;
+            electrodeViewGroupBox.Enabled = false;
+            mriViewGroupBox.Enabled = false;
+            mriViewGroupBox.Text = "MNE source-space preview";
+            electrodeViewPanel.Invalidate();
+            mriViewPanel.Invalidate();
+        }
+
+        private void RefreshStandardElectrodeMatches()
+        {
+            if (_loadedFile is null)
+            {
+                ClearSourceViews();
+                return;
+            }
+
+            _matchedElectrodes = StandardElectrodePositionService.MatchChannels(_channelNames.OrderBy(pair => pair.Key).Select(pair => pair.Value));
+            electrodeViewPanel.Invalidate();
+        }
+
+        private async Task RenderMneSourcePreviewAsync(EdfFile loadedFile, int renderVersion)
+        {
+            try
+            {
+                var projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.FullName ?? Directory.GetCurrentDirectory();
+                var pythonPath = ResolvePythonPath(projectRoot);
+                var scriptPath = ResolveSourcePreviewScriptPath(projectRoot);
+                var workingDirectory = Path.GetDirectoryName(scriptPath) ?? Path.Combine(projectRoot, "RuiSource", "Python");
+                var channelNames = loadedFile.Signals
+                    .Select((signal, index) => GetChannelDisplayName(index, signal.Label))
+                    .ToArray();
+
+                var outputPath = await PythonSourcePreviewService.RenderPreviewAsync(
+                    pythonPath,
+                    scriptPath,
+                    workingDirectory,
+                    channelNames);
+
+                if (renderVersion != _sourcePreviewRenderVersion || !ReferenceEquals(loadedFile, _loadedFile))
+                {
+                    return;
+                }
+
+                using var loadedImage = Image.FromFile(outputPath);
+                SetSourcePreviewImage(new Bitmap(loadedImage));
+                _sourcePreviewMessage = "MNE source preview rendered.";
+            }
+            catch (Exception ex)
+            {
+                if (renderVersion != _sourcePreviewRenderVersion || !ReferenceEquals(loadedFile, _loadedFile))
+                {
+                    return;
+                }
+
+                _sourcePreviewMessage = $"MNE preview unavailable: {ex.Message}";
+                sourcePreviewPictureBox.Visible = false;
+                mriViewPanel.Invalidate();
+            }
+        }
+
+        private void SetSourcePreviewImage(Image image)
+        {
+            DisposeSourcePreviewImage();
+            _sourcePreviewImage = image;
+            sourcePreviewPictureBox.Image = _sourcePreviewImage;
+            sourcePreviewPictureBox.Visible = true;
+            mriViewPanel.Invalidate();
+        }
+
+        private void DisposeSourcePreviewImage()
+        {
+            sourcePreviewPictureBox.Image = null;
+            _sourcePreviewImage?.Dispose();
+            _sourcePreviewImage = null;
+        }
+
+        private static PointF ProjectElectrode(ElectrodePosition electrode, PointF center, float radius)
+        {
+            var depthScale = 0.82f + (float)Math.Clamp(electrode.Z, -0.2d, 1d) * 0.10f;
+            var x = center.X + (float)electrode.X * radius * depthScale;
+            var y = center.Y - (float)electrode.Y * radius * depthScale;
+            return new PointF(x, y);
+        }
+
+        private static void DrawNose(Graphics graphics, Pen pen, PointF center, float radius)
+        {
+            var nose = new[]
+            {
+                new PointF(center.X - radius * 0.12f, center.Y - radius * 0.96f),
+                new PointF(center.X, center.Y - radius * 1.16f),
+                new PointF(center.X + radius * 0.12f, center.Y - radius * 0.96f)
+            };
+            graphics.DrawLines(pen, nose);
+        }
+
+        private void DrawOrientationAxes(Graphics graphics, Rectangle bounds)
+        {
+            var origin = new Point(bounds.Right - 62, bounds.Bottom - 42);
+            using var axisPen = new Pen(Color.DimGray, 1.1f)
+            {
+                CustomEndCap = new System.Drawing.Drawing2D.AdjustableArrowCap(3f, 4f)
+            };
+
+            graphics.DrawLine(axisPen, origin, new Point(origin.X + 36, origin.Y));
+            graphics.DrawLine(axisPen, origin, new Point(origin.X, origin.Y - 30));
+            TextRenderer.DrawText(graphics, "R", Font, new Point(origin.X + 39, origin.Y - 9), Color.DimGray);
+            TextRenderer.DrawText(graphics, "S", Font, new Point(origin.X - 5, origin.Y - 48), Color.DimGray);
+        }
+
         private double GetTimeFromPlotX(int x)
         {
             var plotWidth = Math.Max(1, plotPanel.ClientRectangle.Width - LabelAreaWidth - 20);
@@ -786,6 +1037,26 @@ namespace RuiSource
             }
 
             return Path.Combine(AppContext.BaseDirectory, "Python", "compute_tfr.py");
+        }
+
+        private string ResolveSourcePreviewScriptPath(string projectRoot)
+        {
+            if (!string.IsNullOrWhiteSpace(_configuration.PythonScriptsFolder))
+            {
+                var configuredScriptPath = Path.Combine(_configuration.PythonScriptsFolder, "render_source_preview.py");
+                if (File.Exists(configuredScriptPath))
+                {
+                    return configuredScriptPath;
+                }
+            }
+
+            var projectScriptPath = Path.Combine(projectRoot, "RuiSource", "Python", "render_source_preview.py");
+            if (File.Exists(projectScriptPath))
+            {
+                return projectScriptPath;
+            }
+
+            return Path.Combine(AppContext.BaseDirectory, "Python", "render_source_preview.py");
         }
 
         private void frequencyComboBox_KeyPress(object? sender, KeyPressEventArgs e)

@@ -48,10 +48,22 @@
             applyFilterButton = new ToolStripButton();
             computePsdButton = new ToolStripButton();
             computeTfrButton = new ToolStripButton();
+            mainLayoutPanel = new TableLayoutPanel();
             plotPanel = new Panel();
+            sourcePreviewLayoutPanel = new TableLayoutPanel();
+            electrodeViewGroupBox = new GroupBox();
+            electrodeViewPanel = new Panel();
+            mriViewGroupBox = new GroupBox();
+            mriViewPanel = new Panel();
+            sourcePreviewPictureBox = new PictureBox();
             statusLabel = new Label();
             menuStrip1.SuspendLayout();
             filterToolStrip.SuspendLayout();
+            mainLayoutPanel.SuspendLayout();
+            sourcePreviewLayoutPanel.SuspendLayout();
+            electrodeViewGroupBox.SuspendLayout();
+            mriViewGroupBox.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)sourcePreviewPictureBox).BeginInit();
             SuspendLayout();
 
             menuStrip1.ImageScalingSize = new Size(24, 24);
@@ -159,12 +171,25 @@
             computeTfrButton.Visible = false;
             computeTfrButton.Click += computeTfrButton_Click;
 
+            mainLayoutPanel.ColumnCount = 2;
+            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            mainLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
+            mainLayoutPanel.Controls.Add(plotPanel, 0, 0);
+            mainLayoutPanel.Controls.Add(sourcePreviewLayoutPanel, 1, 0);
+            mainLayoutPanel.Dock = DockStyle.Fill;
+            mainLayoutPanel.Location = new Point(0, 67);
+            mainLayoutPanel.Name = "mainLayoutPanel";
+            mainLayoutPanel.RowCount = 1;
+            mainLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            mainLayoutPanel.Size = new Size(800, 336);
+            mainLayoutPanel.TabIndex = 2;
+
             plotPanel.BackColor = Color.White;
             plotPanel.Dock = DockStyle.Fill;
-            plotPanel.Location = new Point(0, 67);
+            plotPanel.Location = new Point(3, 3);
             plotPanel.Name = "plotPanel";
-            plotPanel.Size = new Size(800, 336);
-            plotPanel.TabIndex = 2;
+            plotPanel.Size = new Size(494, 330);
+            plotPanel.TabIndex = 0;
             plotPanel.Paint += plotPanel_Paint;
             plotPanel.Resize += plotPanel_Resize;
             plotPanel.MouseWheel += plotPanel_MouseWheel;
@@ -172,6 +197,70 @@
             plotPanel.MouseDown += plotPanel_MouseDown;
             plotPanel.MouseMove += plotPanel_MouseMove;
             plotPanel.MouseUp += plotPanel_MouseUp;
+
+            sourcePreviewLayoutPanel.ColumnCount = 1;
+            sourcePreviewLayoutPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            sourcePreviewLayoutPanel.Controls.Add(electrodeViewGroupBox, 0, 0);
+            sourcePreviewLayoutPanel.Controls.Add(mriViewGroupBox, 0, 1);
+            sourcePreviewLayoutPanel.Dock = DockStyle.Fill;
+            sourcePreviewLayoutPanel.Location = new Point(503, 3);
+            sourcePreviewLayoutPanel.Name = "sourcePreviewLayoutPanel";
+            sourcePreviewLayoutPanel.RowCount = 2;
+            sourcePreviewLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            sourcePreviewLayoutPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            sourcePreviewLayoutPanel.Size = new Size(294, 330);
+            sourcePreviewLayoutPanel.TabIndex = 1;
+
+            electrodeViewGroupBox.Controls.Add(electrodeViewPanel);
+            electrodeViewGroupBox.Dock = DockStyle.Fill;
+            electrodeViewGroupBox.Enabled = false;
+            electrodeViewGroupBox.Location = new Point(3, 3);
+            electrodeViewGroupBox.Name = "electrodeViewGroupBox";
+            electrodeViewGroupBox.Padding = new Padding(6, 6, 6, 6);
+            electrodeViewGroupBox.Size = new Size(288, 159);
+            electrodeViewGroupBox.TabIndex = 0;
+            electrodeViewGroupBox.TabStop = false;
+            electrodeViewGroupBox.Text = "EEG electrodes 3D position";
+
+            electrodeViewPanel.BackColor = Color.White;
+            electrodeViewPanel.Dock = DockStyle.Fill;
+            electrodeViewPanel.Location = new Point(6, 30);
+            electrodeViewPanel.Name = "electrodeViewPanel";
+            electrodeViewPanel.Size = new Size(276, 123);
+            electrodeViewPanel.TabIndex = 0;
+            electrodeViewPanel.Paint += electrodeViewPanel_Paint;
+            electrodeViewPanel.Resize += electrodeViewPanel_Resize;
+
+            mriViewGroupBox.Controls.Add(sourcePreviewPictureBox);
+            mriViewGroupBox.Controls.Add(mriViewPanel);
+            mriViewGroupBox.Dock = DockStyle.Fill;
+            mriViewGroupBox.Enabled = false;
+            mriViewGroupBox.Location = new Point(3, 168);
+            mriViewGroupBox.Name = "mriViewGroupBox";
+            mriViewGroupBox.Padding = new Padding(6, 6, 6, 6);
+            mriViewGroupBox.Size = new Size(288, 159);
+            mriViewGroupBox.TabIndex = 1;
+            mriViewGroupBox.TabStop = false;
+            mriViewGroupBox.Text = "Standard MRI 3D view";
+
+            mriViewPanel.BackColor = Color.White;
+            mriViewPanel.Dock = DockStyle.Fill;
+            mriViewPanel.Location = new Point(6, 30);
+            mriViewPanel.Name = "mriViewPanel";
+            mriViewPanel.Size = new Size(276, 123);
+            mriViewPanel.TabIndex = 0;
+            mriViewPanel.Paint += mriViewPanel_Paint;
+            mriViewPanel.Resize += mriViewPanel_Resize;
+
+            sourcePreviewPictureBox.BackColor = Color.White;
+            sourcePreviewPictureBox.Dock = DockStyle.Fill;
+            sourcePreviewPictureBox.Location = new Point(6, 30);
+            sourcePreviewPictureBox.Name = "sourcePreviewPictureBox";
+            sourcePreviewPictureBox.Size = new Size(276, 123);
+            sourcePreviewPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            sourcePreviewPictureBox.TabIndex = 1;
+            sourcePreviewPictureBox.TabStop = false;
+            sourcePreviewPictureBox.Visible = false;
 
             statusLabel.Dock = DockStyle.Bottom;
             statusLabel.Location = new Point(0, 403);
@@ -184,7 +273,7 @@
 
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(800, 450);
-            Controls.Add(plotPanel);
+            Controls.Add(mainLayoutPanel);
             Controls.Add(statusLabel);
             Controls.Add(filterToolStrip);
             Controls.Add(menuStrip1);
@@ -192,6 +281,11 @@
             MinimumSize = new Size(900, 500);
             Name = "Form1";
             Text = "RuiSource";
+            ((System.ComponentModel.ISupportInitialize)sourcePreviewPictureBox).EndInit();
+            mriViewGroupBox.ResumeLayout(false);
+            electrodeViewGroupBox.ResumeLayout(false);
+            sourcePreviewLayoutPanel.ResumeLayout(false);
+            mainLayoutPanel.ResumeLayout(false);
             filterToolStrip.ResumeLayout(false);
             filterToolStrip.PerformLayout();
             menuStrip1.ResumeLayout(false);
@@ -221,7 +315,14 @@
         private ToolStripButton applyFilterButton;
         private ToolStripButton computePsdButton;
         private ToolStripButton computeTfrButton;
+        private TableLayoutPanel mainLayoutPanel;
         private Panel plotPanel;
+        private TableLayoutPanel sourcePreviewLayoutPanel;
+        private GroupBox electrodeViewGroupBox;
+        private Panel electrodeViewPanel;
+        private GroupBox mriViewGroupBox;
+        private Panel mriViewPanel;
+        private PictureBox sourcePreviewPictureBox;
         private Label statusLabel;
     }
 }
